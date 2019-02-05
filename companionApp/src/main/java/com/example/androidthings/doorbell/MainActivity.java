@@ -42,13 +42,62 @@ public class MainActivity extends AppCompatActivity {
 
         // Reference for doorbell events from embedded device
        // DatabaseReference ref = FirebaseDatabase.getInstance().getReference().child("logs");
-        StorageReference imageRef = FirebaseStorage.getInstance().getReference();
-
+        //StorageReference imageRef = FirebaseStorage.getInstance().getReference();
+        FirebaseDatabase firebaseDatabase = FirebaseDatabase.getInstance();
+        DatabaseReference databaseReference = firebaseDatabase.getReference("logs/OCRIMAGE");
+        
         //Bitmap bitmap;
 
         final ImageView imageView = findViewById(R.id.imageViewOCRIMAGE);
 
-        imageRef.child("OCR_IMAGE.jpeg").getDownloadUrl().addOnSuccessListener(new OnSuccessListener<Uri>() {
+        //I have inserted this code and commented the old code. This should work I guess..
+		
+		//The code is used to get the downloadURL from the database image key that we have stored in the SIGHT application.
+		
+		databaseReference.addValueEventListener(new ValueEventListener() {
+            @SuppressLint("SetTextI18n")
+            @Override
+            public void onDataChange(DataSnapshot snapshot) {
+
+                if (snapshot.getValue() != null) {
+					
+					String imageURL = snapshot.child("image").getValue().toString();
+					
+					imageURL = imageURL.replaceAll("\\]","");
+                    imageURL = imageURL.replaceAll("\\[","");
+
+					
+					/*To use Picasso, you have to add this dependency:
+					
+					 implementation 'com.squareup.picasso:picasso:2.5.2'
+					 
+					 if any latest dependency is available, use it.
+					*/
+					
+					Picasso.with(MainActivity.this).load(imageURL).fit().into(imageView);
+					
+					/*
+					
+					THis should help you get the bitmap object from the imageURL. Just try this and convert the imageURL to URI, and use
+					that uri to convert it into the bitmap like this:
+					
+					Uri uri = Uri.parse(imageURL.toURI().toString());
+					
+					//now since you have obtained the uri object, you can try this and check if the bitmap works.
+					
+					Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
+					imageView.setImageBitmap(bitmap);
+					
+					try the above two lines of code. If your Picasso.with() works, then this should also probably work.
+					
+					*/
+					
+				}
+			}
+		});
+		
+        
+       /* imageRef.child("OCR_IMAGE.jpeg").getDownloadUrl().addOnSuccessListener(new OnSuccessListener<Uri>() {
             @Override
             public void onSuccess(Uri uri) {
 
@@ -68,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
 
             }
         });
-
+        */
 
         //mRecyclerView = (RecyclerView) findViewById(R.id.doorbellView);
         // Show most recent items at the top
@@ -81,6 +130,8 @@ public class MainActivity extends AppCompatActivity {
         //mRecyclerView.setAdapter(mAdapter);
     }
 
+    //Uncomment this method and call this method only when your Picasso.with() and Bitmap works good.
+    
     /*public void ocrTextRecognization(Bitmap bitmap)
     {
         FirebaseVisionImage image = FirebaseVisionImage.fromBitmap(bitmap);
