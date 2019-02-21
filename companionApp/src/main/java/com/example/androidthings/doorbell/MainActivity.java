@@ -40,99 +40,160 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Reference for doorbell events from embedded device
-       // DatabaseReference ref = FirebaseDatabase.getInstance().getReference().child("logs");
-        StorageReference imageRef = FirebaseStorage.getInstance().getReference();
 
-        //Bitmap bitmap;
+        Button btnTTS = findViewById(R.id.btnTTS);
+
+        final TextToSpeech tts = new TextToSpeech(this, (TextToSpeech.OnInitListener) this);
+
+        FirebaseDatabase firebaseDatabase = FirebaseDatabase.getInstance();
+        DatabaseReference databaseReference = firebaseDatabase.getReference("logs/OCRIMAGE");
+
 
         final ImageView imageView = findViewById(R.id.imageViewOCRIMAGE);
 
-        imageRef.child("OCR_IMAGE.jpeg").getDownloadUrl().addOnSuccessListener(new OnSuccessListener<Uri>() {
+        databaseReference.addValueEventListener(new ValueEventListener() {
+            @SuppressLint("SetTextI18n")
             @Override
-            public void onSuccess(Uri uri) {
+            public void onDataChange(DataSnapshot snapshot) {
 
-                try
-                {
-                    Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
+                if (snapshot.getValue() != null) {
 
-                    //ocrTextRecognization(bitmap);
+                    String imageURL = snapshot.child("image").getValue().toString();
 
-                    imageView.setImageBitmap(bitmap);
+                    imageURL = imageURL.replaceAll("\\]","");
+                    imageURL = imageURL.replaceAll("\\[","");
+
+
+                    Picasso.with(MainActivity.this)
+                            .load(imageURL)
+                            .into(new Target() {
+                                @Override
+                                public void onBitmapLoaded(final Bitmap bitmap, Picasso.LoadedFrom from) {
+                                    /* Save the bitmap or do something with it here */
+
+                                    // Set it in the ImageView
+                                    imageView.setImageBitmap(bitmap);
+
+                                    ocrTextRecognization(bitmap);
+
+                                }
+
+                                @Override
+                                public void onBitmapFailed(Drawable errorDrawable) {
+
+                                }
+
+                                @Override
+                                public void onPrepareLoad(Drawable placeHolderDrawable) {
+
+                                }
+                            });
+
 
                 }
-                catch(Exception ex)
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+
+                Log.v("Error at onCancelled", databaseError.toString());
+
+            }
+        });
+
+        btnTTS.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                if(text.equals("") || text.equals("N/A"))
                 {
-                    System.out.println(ex.getMessage());
+                    tts.setLanguage(Locale.ENGLISH);
+
+                    tts.speak("NO Text. Error!",TextToSpeech.QUEUE_FLUSH,null,null);
+                }
+                else
+                {
+                    tts.setLanguage(Locale.ENGLISH);
+
+                    tts.speak(text,TextToSpeech.QUEUE_FLUSH,null, null);
                 }
 
             }
         });
 
 
-        //mRecyclerView = (RecyclerView) findViewById(R.id.doorbellView);
-        // Show most recent items at the top
-        //LinearLayoutManager layoutManager =
-          //      new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, true);
-        //mRecyclerView.setLayoutManager(layoutManager);
-
-        // Initialize RecyclerView adapter
-        //mAdapter = new DoorbellEntryAdapter(this, ref);
-        //mRecyclerView.setAdapter(mAdapter);
     }
 
-    /*public void ocrTextRecognization(Bitmap bitmap)
+    public void ocrTextRecognization(Bitmap bitmap)
     {
         FirebaseVisionImage image = FirebaseVisionImage.fromBitmap(bitmap);
 
-        FirebaseVisionTextRecognizer detector = FirebaseVision.getInstance()
+        /*FirebaseVisionTextRecognizer detector = FirebaseVision.getInstance()
                 .getOnDeviceTextRecognizer();
+*/
+        FirebaseVisionImageMetadata metadata = new FirebaseVisionImageMetadata.Builder()
+                .setWidth(480)   // 480x360 is typically sufficient for
+                .setHeight(360)  // image recognition
+                .setFormat(FirebaseVisionImageMetadata.IMAGE_FORMAT_NV21)
+                .build();
 
-        ImageView imageView = findViewById(R.id.imageViewOCRIMAGE);
+        FirebaseVisionDocumentTextRecognizer detector = FirebaseVision.getInstance()
+                .getCloudDocumentTextRecognizer();
+
         final TextView textView = findViewById(R.id.textOCR);
 
-        imageView.setImageBitmap(bitmap);
+        Log.d("TEXT OCR", "TEXT CHECK - 1");
 
-        //final String text;
+        detector.processImage(image)
+                .addOnSuccessListener(new OnSuccessListener<FirebaseVisionDocumentText>() {
+                    @Override
+                    public void onSuccess(FirebaseVisionDocumentText result) {
+                        // Task completed successfully
+                        // ...
 
-        Task<FirebaseVisionText> result =
-                detector.processImage(image)
-                        .addOnSuccessListener(new OnSuccessListener<FirebaseVisionText>() {
-                            @Override
-                            public void onSuccess(FirebaseVisionText firebaseVisionText) {
-                                // Task completed successfully
-                                // ...
+                        //String text;
 
-                                for(FirebaseVisionText.TextBlock block: firebaseVisionText.getTextBlocks())
+                        for(FirebaseVisionDocumentText.Block block : result.getBlocks())
+                        {
+                            text = block.getText();
+                            textView.setText(text);
+
+                            for (FirebaseVisionDocumentText.Paragraph paragraph : block.getParagraphs())
+                            {
+                                text = paragraph.getText();
+                                textView.setText(text);
+
+                                for (FirebaseVisionDocumentText.Word word : paragraph.getWords())
                                 {
-
-                                    String text = block.getText();
-
+                                    text = word.getText();
                                     textView.setText(text);
 
-                                    Log.d("OCR Text: ", text);
-
-
+                                    for (FirebaseVisionDocumentText.Symbol symbol : word.getSymbols())
+                                        text = symbol.getText();;
+                                        textView.setText(text);
 
                                 }
 
                             }
-                        })
-                        .addOnFailureListener(
-                                new OnFailureListener() {
-                                    @Override
-                                    public void onFailure(@NonNull Exception e) {
-                                        // Task failed with an exception
-                                        // ...
-                                        Log.d("Task Exception:", e.getMessage());
-                                    }
-                                });
+                        }
+
+
+
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        // Task failed with an exception
+                        // ...
+                    }
+                });
 
 
 
 
     }
-*/
+
     @Override
     public void onStart() {
         super.onStart();
@@ -156,5 +217,4 @@ public class MainActivity extends AppCompatActivity {
         // Tear down Firebase listeners in adapter
         //mAdapter.stopListening();
     }
-
 }
